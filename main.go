@@ -15,14 +15,15 @@ const mainUrl = "https://dsbmobile.de/data/a1e4f6c9-6f35-4f41-aafb-1b41c3843ade/
 const sessionId = "qunfqjjmdlhelkmcomik4h21"
 
 var myClasses = []string{
-    "11E05",
+	"11E05",
+	"12dsp15",
 }
 
 func main() {
-    htmlString, err := requestSubst(1)
-    if err != nil {
-        log.Fatalln(err)
-    }
+	htmlString, err := requestSubst(1)
+	if err != nil {
+		log.Fatalln(err)
+	}
 
 	doc, err := goquery.NewDocumentFromReader(strings.NewReader(htmlString))
 	if err != nil {
@@ -35,24 +36,24 @@ func main() {
 func requestSubst(n int) (string, error) {
 	client := &http.Client{}
 
-	url := fmt.Sprintf(mainUrl + `subst_%03d.htm`, n)
+	url := fmt.Sprintf(mainUrl+`subst_%03d.htm`, n)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-        return "", err
+		return "", err
 	}
 	req.Header.Add("ASP.NET_SessionId", sessionId)
 
 	resp, err := client.Do(req)
 	if err != nil {
-        return "", err
+		return "", err
 	}
 
 	htmlBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-        return "", err
+		return "", err
 	}
 	htmlString := string(htmlBytes)
-    return htmlString, nil
+	return htmlString, nil
 }
 
 func parseHtml(doc *goquery.Document) {
@@ -75,13 +76,15 @@ func parseHtml(doc *goquery.Document) {
 		hours := texts[2]
 		room := texts[3]
 		className := texts[4]
-   
-        compare := func(s string) bool {
-            return s == className
-        }
 
-        if util.Some(myClasses, compare) {
-            log.Println(className, "in", room, "at", hours)
-        }
+		compare := func(first string) func(other string) bool {
+			return func(other string) bool {
+				return first == other
+			}
+		}
+
+		if util.Some(myClasses, compare(className)) {
+			log.Println(className, "in", room, "at", hours)
+		}
 	})
 }
