@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -19,18 +20,30 @@ var myClasses = []string{
 	"12dsp15",
 }
 
+var notFoundError = errors.New("page not found")
+
 func main() {
-	htmlString, err := requestSubst(1)
-	if err != nil {
-		log.Fatalln(err)
+	pages := []string{}
+	for i := 1; true; i++ {
+		htmlString, err := requestSubst(i)
+		if err != nil {
+			if errors.Is(err, notFoundError) {
+				break
+			}
+			log.Fatalln(err)
+		}
+		pages = append(pages, htmlString)
 	}
 
-	doc, err := goquery.NewDocumentFromReader(strings.NewReader(htmlString))
-	if err != nil {
-		log.Fatalln(err)
-	}
+	for _, page := range pages {
 
-	parseHtml(doc)
+		doc, err := goquery.NewDocumentFromReader(strings.NewReader(page))
+		if err != nil {
+			log.Fatalln(err)
+		}
+
+		parseHtml(doc)
+	}
 }
 
 func requestSubst(n int) (string, error) {
@@ -53,6 +66,11 @@ func requestSubst(n int) (string, error) {
 		return "", err
 	}
 	htmlString := string(htmlBytes)
+
+	if htmlString == "" {
+		return "", notFoundError
+	}
+
 	return htmlString, nil
 }
 
