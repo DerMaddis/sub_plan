@@ -6,13 +6,14 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/dermaddis/sub_plan/util"
+	"github.com/joho/godotenv"
 )
 
-const mainUrl = "https://dsbmobile.de/data/a1e4f6c9-6f35-4f41-aafb-1b41c3843ade/44541846-bcd9-4247-bb6e-2a9475bb5ef7/"
 const sessionId = "qunfqjjmdlhelkmcomik4h21"
 
 var myClasses = []string{
@@ -23,9 +24,19 @@ var myClasses = []string{
 var notFoundError = errors.New("page not found")
 
 func main() {
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
+
+	mainUrl := os.Getenv("mainUrl")
+	if mainUrl == "" {
+		log.Fatalln("Add mainUrl to .env file")
+	}
+
 	pages := []string{}
 	for i := 1; true; i++ {
-		htmlString, err := requestSubst(i)
+		htmlString, err := requestSubst(mainUrl, i)
 		if err != nil {
 			if errors.Is(err, notFoundError) {
 				break
@@ -46,10 +57,10 @@ func main() {
 	}
 }
 
-func requestSubst(n int) (string, error) {
+func requestSubst(baseUrl string, n int) (string, error) {
 	client := &http.Client{}
 
-	url := fmt.Sprintf(mainUrl+`subst_%03d.htm`, n)
+	url := fmt.Sprintf(baseUrl+`subst_%03d.htm`, n)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return "", err
