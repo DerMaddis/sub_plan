@@ -14,8 +14,6 @@ import (
 	"github.com/joho/godotenv"
 )
 
-const sessionId = "qunfqjjmdlhelkmcomik4h21"
-
 var myClasses = []string{
 	"11E05",
 	"12dsp15",
@@ -33,10 +31,14 @@ func main() {
 	if mainUrl == "" {
 		log.Fatalln("Add mainUrl to .env file")
 	}
+	sessionId := os.Getenv("sessionId")
+	if sessionId == "" {
+		log.Fatalln("Add sessionId to .env file")
+	}
 
 	pages := []string{}
 	for i := 1; true; i++ {
-		htmlString, err := requestSubst(mainUrl, i)
+		htmlString, err := requestSubst(mainUrl, sessionId, i)
 		if err != nil {
 			if errors.Is(err, notFoundError) {
 				break
@@ -57,7 +59,7 @@ func main() {
 	}
 }
 
-func requestSubst(baseUrl string, n int) (string, error) {
+func requestSubst(baseUrl, sessionId string, n int) (string, error) {
 	client := &http.Client{}
 
 	url := fmt.Sprintf(baseUrl+`subst_%03d.htm`, n)
