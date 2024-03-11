@@ -141,8 +141,15 @@ func parseHtml(doc *goquery.Document) {
 		}
 		log.Println("start:", start, "end:", end)
 
-		entryType, roomData1, roomData2 := parseRoom(roomStr)
-		log.Println("entryType:", entryType, "roomData:", roomData1, roomData2)
+		roomData := parseRoom(roomStr)
+		switch d := roomData.(type) {
+		case RoomCancelledData:
+			log.Println("cancelled")
+		case RoomSwitchData:
+			log.Println("switch from", d.Room1, "to", d.Room2)
+		case RoomOtherData:
+			log.Println("other", d.Data)
+		}
 	})
 }
 
@@ -174,18 +181,37 @@ func parseHours(s string) (int, int, error) {
 	}
 }
 
-func parseRoom(s string) (EntryType, string, string) {
+type RoomCancelledData struct {
+}
+
+type RoomSwitchData struct {
+	Room1 string
+	Room2 string
+}
+
+type RoomOtherData struct {
+	Data string
+}
+
+func parseRoom(s string) interface{} {
+	// cancelled
+	//"---"
+	//"105→---"
+
+	// switch
+	//"102→105"
+	//"105→602,603,604"
 	switch {
-	case strings.HasSuffix(s, "---"):
-		return Cancelled, "", ""
+	case strings.HasSuffix(s, "---"): // this could be changed to detect <s></s> tags around the room (or both)
+		return RoomCancelledData{}
 	case strings.Contains(s, "→"):
 		rooms := strings.Split(s, "→")
 		if len(rooms) != 2 {
-			return Other, s, ""
+			return RoomOtherData{s}
 		}
-		return Switch, rooms[0], rooms[1]
+		return RoomSwitchData{rooms[0], rooms[1]}
 	default:
-		return Other, s, ""
+		return RoomOtherData{s}
 	}
 }
 
