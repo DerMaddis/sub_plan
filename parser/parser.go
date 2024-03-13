@@ -5,88 +5,115 @@ import (
 	"fmt"
 	"log"
 	"regexp"
+	"sync"
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
 )
 
 type Substitution struct {
+	UpdatedAt time.Time
+	RoomData  interface{}
+	Start     int
+	End       int
 }
 
-func Parse(doc *goquery.Document) (*Substitution, error) {
-    updateTimeSelection := doc.Find(".mon_head p")
-    if updateTimeSelection.Length() != 1 {
-        return nil, fmt.Errorf("UpdatedAt element not found %w", parseError)
-    }
-    updateTimeRegex := regexp.MustCompile(".*Stand: (?P<Date>.*)$")
-    matches := updateTimeRegex.FindStringSubmatch(updateTimeSelection.Text())
-    if len(matches) != 2 {
-        return nil, fmt.Errorf("UpdatedAt not matched %w", parseError)
-    }
-    updateTimeString := matches[1]
-    updateTime, err := time.Parse("02.01.2006 15:04", updateTimeString)
-    if err != nil {
-        return nil, fmt.Errorf("UpdateTime not parsed %w", parseError)
-    }
-    log.Println(updateTime)
+func Parse(doc *goquery.Document) ([]*Substitution, error) {
+	updateTimeSelection := doc.Find(".mon_head p")
+	if updateTimeSelection.Length() != 1 {
+		return nil, fmt.Errorf("UpdatedAt element not found %w", parseError)
+	}
+	updateTimeRegex := regexp.MustCompile(".*Stand: (?P<Date>.*)$")
+	matches := updateTimeRegex.FindStringSubmatch(updateTimeSelection.Text())
+	if len(matches) != 2 {
+		return nil, fmt.Errorf("UpdatedAt not matched %w", parseError)
+	}
+	updateTimeString := matches[1]
+	updatedAt, err := time.Parse("02.01.2006 15:04", updateTimeString)
+	if err != nil {
+		return nil, fmt.Errorf("UpdateTime not parsed %w", parseError)
+	}
 
 	titleSelection := doc.Find(".mon_title")
 	if titleSelection.Length() == 0 {
 		return nil, fmt.Errorf("Title not found %w", parseError)
 	}
 
-	var _err *error
+	var wg sync.WaitGroup
+
+	entries := doc.Find("tr.list").Slice(1, goquery.ToEnd)
+	if entries.Length() == 0 {
+		return nil, fmt.Errorf("No entries found %w", parseError)
+	}
+	substChan := make(chan *Substitution, entries.Length())
+	errChan := make(chan error, entries.Length())
 
 	doc.Find("tr.list").Slice(1, goquery.ToEnd).Each(func(i int, s *goquery.Selection) {
-		if _err != nil {
-			// skip iteration since one of the last ones errored
-			return
-		}
-
-		data := s.Find("td.list")
-		if data.Length() != 7 {
-            err := fmt.Errorf("Not 7 entries in table row %w", parseError)
-            _err = &err
-            return
-		}
-
-		texts := make([]string, 0, 7)
-		data.Each(func(i int, s *goquery.Selection) {
-			texts = append(texts, s.Text())
-		})
-
-		log.Println("---", texts, "---")
-
-		hoursStr := texts[2]
-		roomStr := texts[3]
-		// className := texts[4]
-
-		start, end, err := parseHours(hoursStr)
-		if err != nil {
-			if errors.Is(err, parseError) {
-				start, end = 0, 0
-			} else {
-				_err = &err
-				return
-			}
-		}
-		log.Println("start:", start, "end:", end)
-
-		roomData := parseRoom(roomStr)
-		switch d := roomData.(type) {
-		case RoomCancelledData:
-			log.Println("cancelled")
-		case RoomSwitchData:
-			log.Println("switch from", d.Room1, "to", d.Room2)
-		case RoomOtherData:
-			log.Println("other", d.Data)
-		}
+		wg.Add(1)
+		go parseEntry(s, substChan, errChan, &wg)
 	})
 
-	if _err != nil {
-		return nil, fmt.Errorf("Parse: %w", *_err)
+	go func() {
+		wg.Wait()
+		close(substChan)
+		close(errChan)
+	}()
+
+	results := []*Substitution{}
+	for subst := range substChan {
+		results = append(results, subst)
 	}
 
-	return &Substitution{}, nil
+	// fill UpdatedAt field
+	for i := 0; i < len(results); i++ {
+		results[i].UpdatedAt = updatedAt
+	}
+
+	if len(errChan) != 0 {
+		log.Println("--- Errors")
+		for err := range errChan {
+			log.Println(err)
+		}
+		log.Println("--- Errors end")
+	}
+
+	return results, nil
 }
 
+func parseEntry(s *goquery.Selection, substChan chan<- *Substitution, errChan chan<- error, wg *sync.WaitGroup) {
+	defer wg.Done()
+	data := s.Find("td.list")
+	if data.Length() != 7 {
+		err := fmt.Errorf("Not 7 entries in table row %w", parseError)
+		errChan <- err
+		return
+	}
+
+	texts := make([]string, 0, 7)
+	data.Each(func(i int, s *goquery.Selection) {
+		texts = append(texts, s.Text())
+	})
+
+	hoursStr := texts[2]
+	roomStr := texts[3]
+	// className := texts[4]
+
+	start, end, err := parseHours(hoursStr)
+	if err != nil {
+		if errors.Is(err, parseError) {
+			start, end = 0, 0
+		} else {
+			errChan <- err
+			return
+		}
+	}
+
+	roomData := parseRoom(roomStr)
+
+	subst := &Substitution{
+		Start:    start,
+		End:      end,
+		RoomData: roomData,
+	}
+	substChan <- subst
+}

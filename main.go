@@ -12,7 +12,6 @@ import (
 	"github.com/dermaddis/sub_plan/parser"
 
 	"github.com/PuerkitoBio/goquery"
-	_ "github.com/dermaddis/sub_plan/util"
 	"github.com/joho/godotenv"
 )
 
@@ -67,7 +66,9 @@ func main() {
 			log.Fatalln(err)
 		}
 
-		log.Println(substitution)
+		for _, subst := range substitution {
+			log.Println(subst)
+		}
 	}
 }
 
