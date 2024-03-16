@@ -40,7 +40,7 @@ func main() {
 
 	pages := []string{}
 	for i := 1; true; i++ {
-		htmlString, err := requestSubst(mainUrl, sessionId, i)
+		htmlString, err := requestDocument(mainUrl, sessionId, i)
 		if err != nil {
 			if errors.Is(err, notFoundError) {
 				break
@@ -72,7 +72,7 @@ func main() {
 	}
 }
 
-func requestSubst(baseUrl, sessionId string, n int) (string, error) {
+func requestDocument(baseUrl, sessionId string, n int) (string, error) {
 	client := &http.Client{}
 
 	url := fmt.Sprintf(baseUrl+`subst_%03d.htm`, n)

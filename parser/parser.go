@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"regexp"
 	"sync"
 	"time"
 
@@ -12,39 +11,27 @@ import (
 )
 
 type Substitution struct {
-	UpdatedAt time.Time
+	UpdatedAt time.Time // when this subst was put into the system
+	Date      time.Time // which day this subst is concerning
 	RoomData  interface{}
 	Start     int
 	End       int
 }
 
 func Parse(doc *goquery.Document) ([]*Substitution, error) {
-	updateTimeSelection := doc.Find(".mon_head p")
-	if updateTimeSelection.Length() != 1 {
-		return nil, fmt.Errorf("UpdatedAt element not found %w", parseError)
-	}
-	updateTimeRegex := regexp.MustCompile(".*Stand: (?P<Date>.*)$")
-	matches := updateTimeRegex.FindStringSubmatch(updateTimeSelection.Text())
-	if len(matches) != 2 {
-		return nil, fmt.Errorf("UpdatedAt not matched %w", parseError)
-	}
-	updateTimeString := matches[1]
-	updatedAt, err := time.Parse("02.01.2006 15:04", updateTimeString)
+	updatedAt, err := GetUpdatedAt(doc)
 	if err != nil {
-		return nil, fmt.Errorf("UpdateTime not parsed %w", parseError)
+		return nil, fmt.Errorf("UpdatedAt not found %w", err)
 	}
 
-	titleSelection := doc.Find(".mon_title")
-	if titleSelection.Length() == 0 {
-		return nil, fmt.Errorf("Title not found %w", parseError)
-	}
-
-	var wg sync.WaitGroup
+	date, err := GetDate(doc)
 
 	entries := doc.Find("tr.list").Slice(1, goquery.ToEnd)
 	if entries.Length() == 0 {
 		return nil, fmt.Errorf("No entries found %w", parseError)
 	}
+
+	var wg sync.WaitGroup
 	substChan := make(chan *Substitution, entries.Length())
 	errChan := make(chan error, entries.Length())
 
@@ -67,6 +54,11 @@ func Parse(doc *goquery.Document) ([]*Substitution, error) {
 	// fill UpdatedAt field
 	for i := 0; i < len(results); i++ {
 		results[i].UpdatedAt = updatedAt
+	}
+
+	// fill Date field
+	for i := 0; i < len(results); i++ {
+		results[i].Date = date
 	}
 
 	if len(errChan) != 0 {
