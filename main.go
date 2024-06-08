@@ -16,7 +16,7 @@ import (
 )
 
 var myClasses = []string{
-	"11E05",
+	"12e13",
 	"12dsp15",
 }
 
@@ -54,8 +54,9 @@ func main() {
 		log.Fatalln("No pages found")
 	}
 
-	for _, page := range pages {
+	results := []*parser.Substitution{}
 
+	for _, page := range pages {
 		doc, err := goquery.NewDocumentFromReader(strings.NewReader(page))
 		if err != nil {
 			log.Fatalln(err)
@@ -67,9 +68,13 @@ func main() {
 		}
 
 		for _, subst := range substitution {
-			log.Println(subst)
+			results = append(results, subst)
 		}
 	}
+
+    for _, res := range results {
+        fmt.Println(res)
+    }
 }
 
 func requestDocument(baseUrl, sessionId string, n int) (string, error) {

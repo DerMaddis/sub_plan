@@ -18,6 +18,10 @@ type Substitution struct {
 	End       int
 }
 
+func (s Substitution) String() string {
+    return fmt.Sprintf("Start: %d End: %d RoomData: %s", s.Start, s.End, s.RoomData)
+}
+
 func Parse(doc *goquery.Document) ([]*Substitution, error) {
 	updatedAt, err := GetUpdatedAt(doc)
 	if err != nil {
